@@ -125,6 +125,7 @@ async def stream_generator(prompt: str):
                 json={
                     "model": MODEL,
                     "stream": True,
+                    "max_tokens": 350,
                     "messages": [
                         {
                             "role": "user",
