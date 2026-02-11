@@ -223,12 +223,28 @@ async def stream_generator(prompt: str):
                 "Authorization": f"Bearer {OPENAI_API_KEY}",
                 "Content-Type": "application/json",
             },
+            # json={
+            #     "model": MODEL,
+            #     "stream": True,
+            #     "max_tokens": 350,
+            #     "messages": [{"role": "user", "content": prompt}],
+            # },
             json={
-                "model": MODEL,
-                "stream": True,
-                "max_tokens": 350,
-                "messages": [{"role": "user", "content": prompt}],
-            },
+                    "model": "gpt-4o-mini",
+                    "stream": True,
+                    "max_tokens": 350,
+                    "temperature": 0.7,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Write an article about renewable energy. "
+                                "Start immediately. Include quotes and statistics."
+                            )
+                        }
+                    ],
+                },
+
         ) as response:
 
             if response.status_code != 200:
