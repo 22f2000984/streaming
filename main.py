@@ -141,39 +141,72 @@ async def stream_generator(prompt: str):
                     yield "data: [DONE]\n\n"
                     return
 
+                # async for raw_line in response.aiter_lines():
+
+                #     # SAFETY CHECK #2 — skip empty lines
+                #     if not raw_line:
+                #         continue
+
+                #     # SAFETY CHECK #3 — only process data lines
+                #     if not raw_line.startswith("data:"):
+                #         continue
+
+                #     data = raw_line[len("data:"):].strip()
+
+                #     # SAFETY CHECK #4 — skip empty payload
+                #     if not data:
+                #         continue
+
+                #     # Handle stream end
+                #     if data == "[DONE]":
+                #         yield "data: [DONE]\n\n"
+                #         break
+
+                #     # SAFETY CHECK #5 — JSON decode safely
+                #     try:
+                #         payload = json.loads(data)
+                #     except Exception:
+                #         continue
+
+                #     delta = payload.get("choices", [{}])[0].get("delta", {})
+                #     content = delta.get("content")
+
+                #     if content:
+                #         yield f'data: {json.dumps({"choices":[{"delta":{"content":content}}]})}\n\n'
+                #         await asyncio.sleep(0)
+                buffer = ""
+
                 async for raw_line in response.aiter_lines():
 
-                    # SAFETY CHECK #2 — skip empty lines
-                    if not raw_line:
-                        continue
-
-                    # SAFETY CHECK #3 — only process data lines
-                    if not raw_line.startswith("data:"):
+                    if not raw_line or not raw_line.startswith("data:"):
                         continue
 
                     data = raw_line[len("data:"):].strip()
 
-                    # SAFETY CHECK #4 — skip empty payload
                     if not data:
                         continue
 
-                    # Handle stream end
                     if data == "[DONE]":
+                        if buffer:
+                            yield f'data: {json.dumps({"choices":[{"delta":{"content":buffer}}]})}\n\n'
                         yield "data: [DONE]\n\n"
                         break
 
-                    # SAFETY CHECK #5 — JSON decode safely
                     try:
                         payload = json.loads(data)
-                    except Exception:
+                    except:
                         continue
 
                     delta = payload.get("choices", [{}])[0].get("delta", {})
                     content = delta.get("content")
 
                     if content:
-                        yield f'data: {json.dumps({"choices":[{"delta":{"content":content}}]})}\n\n'
-                        await asyncio.sleep(0)
+                        buffer += content
+
+                        # Send larger chunks (~80 chars)
+                        if len(buffer) > 80:
+                            yield f'data: {json.dumps({"choices":[{"delta":{"content":buffer}}]})}\n\n'
+                            buffer = ""
 
     except Exception:
         yield f'data: {json.dumps({"error": "Streaming service unavailable"})}\n\n'
