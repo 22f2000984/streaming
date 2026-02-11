@@ -23,9 +23,97 @@ app.add_middleware(
 # SSE Streaming Generator
 # ==============================
 
+# async def stream_generator(prompt: str):
+#     try:
+#         async with httpx.AsyncClient(timeout=None) as client:
+#             async with client.stream(
+#                 "POST",
+#                 f"{OPENAI_BASE_URL}/chat/completions",
+#                 headers={
+#                     "Authorization": f"Bearer {OPENAI_API_KEY}",
+#                     "Content-Type": "application/json",
+#                 },
+#                 json={
+#                     "model": MODEL,
+#                     "stream": True,
+#                     "messages": [
+#                         {
+#                             "role": "user",
+#                             "content": f"Write a 222-word article about renewable energy. "
+#                                        f"Include quotes and statistics. Ensure it is over 888 characters."
+#                         }
+#                     ],
+#                 },
+#             ) as response:
+#                 if response.status_code != 200:
+#                     error_text = await response.aread()
+#                     yield f'data: {json.dumps({"error": "Upstream error"})}\n\n'
+#                     yield "data: [DONE]\n\n"
+#                     return
+
+#                 # async for line in response.aiter_lines():
+#                 #     if line.startswith("data: "):
+#                 #         if line.strip() == "data: [DONE]":
+#                 #             yield "data: [DONE]\n\n"
+#                 #             break
+
+#                 #         try:
+#                 #             payload = json.loads(line[6:])
+#                 #             delta = payload["choices"][0]["delta"]
+#                 #             if "content" in delta:
+#                 #                 chunk = delta["content"]
+#                 #                 sse_data = json.dumps(
+#                 #                     {"choices": [{"delta": {"content": chunk}}]}
+#                 #                 )
+#                 #                 yield f"data: {sse_data}\n\n"
+#                 #                 await asyncio.sleep(0)  # flush immediately
+#                 #         except Exception:
+#                 #             continue
+#                 # 
+#                 async for line in response.aiter_lines():
+
+#                     if not line:
+#                         continue
+
+#                     if not line.startswith("data:"):
+#                         continue
+
+#                     data = line.replace("data:", "", 1).strip()
+
+#                     # Skip empty lines
+#                     if not data:
+#                         continue
+
+#                     # Handle end of stream
+#                     if data == "[DONE]":
+#                         yield "data: [DONE]\n\n"
+#                         break
+
+#                     try:
+#                         payload = json.loads(data)
+#                     except json.JSONDecodeError:
+#                         continue  # ignore malformed chunk safely
+
+#                     delta = payload.get("choices", [{}])[0].get("delta", {})
+#                     content = delta.get("content")
+
+#                     if content:
+#                         yield f'data: {json.dumps({"choices":[{"delta":{"content":content}}]})}\n\n'
+#                         await asyncio.sleep(0)
+
+
+
+#     except Exception:
+#         error_event = json.dumps(
+#             {"error": "Streaming service temporarily unavailable"}
+#         )
+#         yield f"data: {error_event}\n\n"
+#         yield "data: [DONE]\n\n"
+
 async def stream_generator(prompt: str):
     try:
         async with httpx.AsyncClient(timeout=None) as client:
+
             async with client.stream(
                 "POST",
                 f"{OPENAI_BASE_URL}/chat/completions",
@@ -39,60 +127,45 @@ async def stream_generator(prompt: str):
                     "messages": [
                         {
                             "role": "user",
-                            "content": f"Write a 222-word article about renewable energy. "
-                                       f"Include quotes and statistics. Ensure it is over 888 characters."
+                            "content": "Write a 222-word article about renewable energy. "
+                                       "Include quotes and statistics. Ensure it is over 888 characters."
                         }
                     ],
                 },
             ) as response:
+
+                # 🔥 SAFETY CHECK #1 — HTTP STATUS
                 if response.status_code != 200:
-                    error_text = await response.aread()
-                    yield f'data: {json.dumps({"error": "Upstream error"})}\n\n'
+                    yield f'data: {json.dumps({"error": "Upstream API error"})}\n\n'
                     yield "data: [DONE]\n\n"
                     return
 
-                # async for line in response.aiter_lines():
-                #     if line.startswith("data: "):
-                #         if line.strip() == "data: [DONE]":
-                #             yield "data: [DONE]\n\n"
-                #             break
+                async for raw_line in response.aiter_lines():
 
-                #         try:
-                #             payload = json.loads(line[6:])
-                #             delta = payload["choices"][0]["delta"]
-                #             if "content" in delta:
-                #                 chunk = delta["content"]
-                #                 sse_data = json.dumps(
-                #                     {"choices": [{"delta": {"content": chunk}}]}
-                #                 )
-                #                 yield f"data: {sse_data}\n\n"
-                #                 await asyncio.sleep(0)  # flush immediately
-                #         except Exception:
-                #             continue
-                # 
-                async for line in response.aiter_lines():
-
-                    if not line:
+                    # 🔥 SAFETY CHECK #2 — skip empty lines
+                    if not raw_line:
                         continue
 
-                    if not line.startswith("data:"):
+                    # 🔥 SAFETY CHECK #3 — only process data lines
+                    if not raw_line.startswith("data:"):
                         continue
 
-                    data = line.replace("data:", "", 1).strip()
+                    data = raw_line[len("data:"):].strip()
 
-                    # Skip empty lines
+                    # 🔥 SAFETY CHECK #4 — skip empty payload
                     if not data:
                         continue
 
-                    # Handle end of stream
+                    # 🔥 Handle stream end
                     if data == "[DONE]":
                         yield "data: [DONE]\n\n"
                         break
 
+                    # SAFETY CHECK #5 — JSON decode safely
                     try:
                         payload = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue  # ignore malformed chunk safely
+                    except Exception:
+                        continue
 
                     delta = payload.get("choices", [{}])[0].get("delta", {})
                     content = delta.get("content")
@@ -101,14 +174,10 @@ async def stream_generator(prompt: str):
                         yield f'data: {json.dumps({"choices":[{"delta":{"content":content}}]})}\n\n'
                         await asyncio.sleep(0)
 
-
-
     except Exception:
-        error_event = json.dumps(
-            {"error": "Streaming service temporarily unavailable"}
-        )
-        yield f"data: {error_event}\n\n"
+        yield f'data: {json.dumps({"error": "Streaming service unavailable"})}\n\n'
         yield "data: [DONE]\n\n"
+
 
 # ==============================
 # API Endpoint
