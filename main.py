@@ -142,21 +142,21 @@ async def stream_generator(prompt: str):
 
                 async for raw_line in response.aiter_lines():
 
-                    # 🔥 SAFETY CHECK #2 — skip empty lines
+                    # SAFETY CHECK #2 — skip empty lines
                     if not raw_line:
                         continue
 
-                    # 🔥 SAFETY CHECK #3 — only process data lines
+                    # SAFETY CHECK #3 — only process data lines
                     if not raw_line.startswith("data:"):
                         continue
 
                     data = raw_line[len("data:"):].strip()
 
-                    # 🔥 SAFETY CHECK #4 — skip empty payload
+                    # SAFETY CHECK #4 — skip empty payload
                     if not data:
                         continue
 
-                    # 🔥 Handle stream end
+                    # Handle stream end
                     if data == "[DONE]":
                         yield "data: [DONE]\n\n"
                         break
@@ -185,7 +185,11 @@ async def stream_generator(prompt: str):
 
 @app.post("/stream")
 async def stream_endpoint(request: Request):
-    body = await request.json()
+    # body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
 
     if not body.get("stream", False):
         return {"error": "Streaming must be enabled (stream: true)"}
