@@ -45,6 +45,11 @@ async def stream_generator(prompt: str):
                     ],
                 },
             ) as response:
+                if response.status_code != 200:
+                    error_text = await response.aread()
+                    yield f'data: {json.dumps({"error": "Upstream error"})}\n\n'
+                    yield "data: [DONE]\n\n"
+                    return
 
                 # async for line in response.aiter_lines():
                 #     if line.startswith("data: "):
@@ -64,16 +69,22 @@ async def stream_generator(prompt: str):
                 #                 await asyncio.sleep(0)  # flush immediately
                 #         except Exception:
                 #             continue
+                # 
                 async for line in response.aiter_lines():
 
                     if not line:
                         continue
 
-                    if not line.startswith("data: "):
+                    if not line.startswith("data:"):
                         continue
 
-                    data = line[6:].strip()
+                    data = line.replace("data:", "", 1).strip()
 
+                    # Skip empty lines
+                    if not data:
+                        continue
+
+                    # Handle end of stream
                     if data == "[DONE]":
                         yield "data: [DONE]\n\n"
                         break
@@ -81,17 +92,15 @@ async def stream_generator(prompt: str):
                     try:
                         payload = json.loads(data)
                     except json.JSONDecodeError:
-                        continue  # skip malformed chunks safely
+                        continue  # ignore malformed chunk safely
 
                     delta = payload.get("choices", [{}])[0].get("delta", {})
-
                     content = delta.get("content")
+
                     if content:
-                        sse_data = json.dumps(
-                            {"choices": [{"delta": {"content": content}}]}
-                        )
-                        yield f"data: {sse_data}\n\n"
+                        yield f'data: {json.dumps({"choices":[{"delta":{"content":content}}]})}\n\n'
                         await asyncio.sleep(0)
+
 
 
     except Exception:
