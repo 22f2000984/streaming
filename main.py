@@ -112,7 +112,8 @@ app.add_middleware(
 
 async def stream_generator(prompt: str):
     try:
-        async with httpx.AsyncClient(timeout=None) as client:
+        # async with httpx.AsyncClient(timeout=None) as client:
+            client = httpx.AsyncClient(timeout=None)
 
             async with client.stream(
                 "POST",
