@@ -205,7 +205,8 @@ async def stream_generator(prompt: str):
                         buffer += content
 
                         # Send larger chunks (~80 chars)
-                        if len(buffer) > 80:
+                        # if len(buffer) > 80:
+                        if len(buffer) >= 250:
                             yield f'data: {json.dumps({"choices":[{"delta":{"content":buffer}}]})}\n\n'
                             buffer = ""
 
